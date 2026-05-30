@@ -51,7 +51,27 @@ require_root() {
 # ── Шаг 0: подготовка окружения ──────────────────────────────
 prepare_host() {
     step "Подготовка хост-системы"
-    apt-get update -qq
+
+    # Отключаем проблемные сторонние PPA с битыми GPG ключами
+    log "Проверка и отключение проблемных репозиториев..."
+    for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+        [[ -f "$f" ]] || continue
+        if grep -qE "launchpadcontent|cloudfront|toolchain-r|ppa\." "$f" 2>/dev/null; then
+            warn "Отключён проблемный PPA: $(basename $f)"
+            mv "$f" "${f}.disabled" 2>/dev/null || true
+        fi
+    done
+
+    # Добавляем недостающие GPG ключи автоматически
+    log "Восстановление GPG ключей..."
+    for key in 2C277A0A352154E5 1E9377A2BA9EF27F 65106822B35B1B1F; do
+        gpg --keyserver keyserver.ubuntu.com --recv-keys "$key" 2>/dev/null && \
+        gpg --export "$key" | apt-key add - 2>/dev/null || \
+        log "Ключ $key пропущен (PPA отключён)"
+    done
+
+    apt-get update 2>&1 | grep -v "^W:\|^N:" || true
+
     apt-get install -y --no-install-recommends \
         debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin \
         mtools dosfstools curl wget git build-essential bc flex bison \
