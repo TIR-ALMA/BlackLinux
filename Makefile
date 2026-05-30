@@ -28,8 +28,28 @@ check:
 
 # ── Установка зависимостей хоста ─────────────────────────────
 deps:
-	@echo "  [→] Установка зависимостей..."
-	@apt-get update -qq && apt-get install -y --no-install-recommends \
+	@echo "  [→] Исправление GPG ключей и сторонних репозиториев..."
+	@apt-get install -y gnupg2 ca-certificates 2>/dev/null || true
+
+	@echo "  [→] Отключение проблемных сторонних PPA..."
+	@find /etc/apt/sources.list.d/ -type f -name "*.list" | while read f; do \
+	    if grep -qE "launchpadcontent|cloudfront|toolchain-r" "$$f" 2>/dev/null; then \
+	        echo "      Отключён: $$f"; \
+	        mv "$$f" "$${f}.disabled" 2>/dev/null || true; \
+	    fi; \
+	done
+	@find /etc/apt/sources.list.d/ -type f -name "*.sources" | while read f; do \
+	    if grep -qE "launchpadcontent|cloudfront|toolchain-r" "$$f" 2>/dev/null; then \
+	        echo "      Отключён: $$f"; \
+	        mv "$$f" "$${f}.disabled" 2>/dev/null || true; \
+	    fi; \
+	done
+
+	@echo "  [→] Обновление списков пакетов (игнорируем ошибки PPA)..."
+	@apt-get update 2>&1 | grep -v "^W:\|^N:" || true
+
+	@echo "  [→] Установка зависимостей сборки..."
+	@apt-get install -y --no-install-recommends \
 	    debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin \
 	    mtools dosfstools curl wget git build-essential bc flex bison \
 	    libssl-dev libelf-dev libncurses-dev dwarves cpio rsync \
